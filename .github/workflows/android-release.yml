@@ -1,0 +1,76 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - "apk-*"
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name for the GitHub release"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_URL: https://sistema-cesar-mobile-api.onrender.com/api
+      EXPO_PUBLIC_API_URL_ANDROID: https://sistema-cesar-mobile-api.onrender.com/api
+      EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK with EAS local build
+        run: npx eas-cli@20.3.0 build --platform android --profile preview --local --non-interactive
+
+      - name: Locate APK
+        id: apk
+        shell: bash
+        run: |
+          apk_path="$(find "$EAS_LOCAL_BUILD_ARTIFACTS_DIR" -type f -name '*.apk' | head -n 1)"
+          if [ -z "$apk_path" ]; then
+            echo "No APK artifact was produced."
+            exit 1
+          fi
+          echo "path=$apk_path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$apk_path")" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.tag_name }}"
+            if [ -z "$tag" ]; then
+              tag="apk-${GITHUB_RUN_NUMBER}"
+            fi
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release_tag.outputs.tag }}" "${{ steps.apk.outputs.path }}" \
+            --title "Android APK ${{ steps.release_tag.outputs.tag }}" \
+            --notes "Built from commit $GITHUB_SHA" \
+            --target "$GITHUB_SHA"

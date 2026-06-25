@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": "20.3.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_USE_LOCAL_CLI": "0"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_USE_LOCAL_CLI": "0"
+      }
+    }
+  }
+}

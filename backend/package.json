@@ -1,0 +1,32 @@
+{
+  "name": "sistema-cesar-mobile-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend independiente para la app movil de apoderados de Sistema Cesar.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "migrate": "node scripts/migrate.js",
+    "seed:demo": "node scripts/seed_mobile_demo.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "node-cache": "^5.1.2",
+    "pg": "^8.20.0",
+    "sistema_cesar": "file:../..",
+    "zod": "^4.4.1"
+  }
+}

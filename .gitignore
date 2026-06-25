@@ -1,0 +1,13 @@
+.env
+.expo/
+.expo-verify/
+node_modules/
+backend/node_modules/
+*.log
+*.pid
+backend-*.log
+backend-*.pid
+expo-start-*.log
+expo-start-*.pid
+expo-start.log
+expo-start.pid
