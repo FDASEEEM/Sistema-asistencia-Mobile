@@ -67,7 +67,7 @@ export default function HomeScreen({ navigation }) {
           nextStudents[0] ||
           null;
         setSelected(chosen);
-      } catch (_) {}
+      } catch (err) { console.warn('[HomeScreen] load students error:', err); }
     })();
   }, []);
 
@@ -97,7 +97,8 @@ export default function HomeScreen({ navigation }) {
           setSummaryCachedAt(new Date().toISOString());
         }
         await writeCache(cacheKey, data);
-      } catch (_) {
+      } catch (err) {
+        console.warn('[HomeScreen] load summary error:', err);
         if (active) {
           setSummaryError(cached?.value ? "Mostrando el ultimo resumen guardado." : "No pude cargar el resumen del estudiante.");
         }
@@ -158,7 +159,7 @@ export default function HomeScreen({ navigation }) {
         if (active) {
           setComparisonRows(liveRows.sort((a, b) => b.porcentaje - a.porcentaje));
         }
-      } catch (_) {}
+      } catch (err) { console.warn('[HomeScreen] comparison rows error:', err); }
     })();
 
     return () => {

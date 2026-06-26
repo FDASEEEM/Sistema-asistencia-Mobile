@@ -23,7 +23,8 @@ export function AuthProvider({ children }) {
         const { data } = await mobileApi.get("/apoderados/auth/me");
         setUser(data.apoderado);
         await registerPushToken();
-      } catch (_) {
+      } catch (err) {
+        console.warn('[AuthContext] /me error:', err);
         await SecureStore.deleteItemAsync("apoderado_access_token");
         await SecureStore.deleteItemAsync("apoderado_refresh_token");
       } finally {
@@ -39,14 +40,14 @@ export function AuthProvider({ children }) {
     setUser(data.apoderado);
     try {
       await registerPushToken();
-    } catch (_) {}
+    } catch (err) { console.warn('[AuthContext] registerPushToken error:', err); }
   };
 
   const logout = async () => {
     const refreshToken = await SecureStore.getItemAsync("apoderado_refresh_token");
     try {
       await mobileApi.post("/apoderados/auth/logout", { refreshToken });
-    } catch (_) {}
+    } catch (err) { console.warn('[AuthContext] logout error:', err); }
     await SecureStore.deleteItemAsync("apoderado_access_token");
     await SecureStore.deleteItemAsync("apoderado_refresh_token");
     await SecureStore.deleteItemAsync("last_student_id");

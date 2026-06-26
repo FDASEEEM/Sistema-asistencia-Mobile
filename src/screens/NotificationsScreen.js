@@ -185,7 +185,8 @@ export default function NotificationsScreen() {
     try {
       await mobileApi.put(`/apoderados/notificaciones/${item.rawId}/leer`);
       await persistPayload(nextPayload);
-    } catch (_) {
+    } catch (err) {
+      console.warn('[NotificationsScreen] markAsRead error:', err);
       setPayload(payload);
     } finally {
       setBusyId("");
@@ -207,7 +208,8 @@ export default function NotificationsScreen() {
     try {
       await mobileApi.put("/apoderados/notificaciones/leer-todas");
       await persistPayload(nextPayload);
-    } catch (_) {
+    } catch (err) {
+      console.warn('[NotificationsScreen] markAllAsRead error:', err);
       setPayload(payload);
     } finally {
       setMarkingAll(false);

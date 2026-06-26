@@ -58,7 +58,8 @@ export default function StudentSummaryScreen({ route }) {
       setSummary(data);
       setCachedAt(new Date().toISOString());
       await writeCache(cacheKey, data);
-    } catch (_) {
+    } catch (err) {
+      console.warn('[StudentSummaryScreen] loadSummary error:', err);
       if (!cached?.value) {
         setSummary(null);
         setError("No pude cargar el resumen del estudiante.");
@@ -91,7 +92,7 @@ export default function StudentSummaryScreen({ route }) {
           `Atrasos: ${summary.total_atrasos_mes || 0}\n` +
           `Promedio retraso: ${summary.promedio_minutos_retraso || 0} min`,
       });
-    } catch (_) {}
+    } catch (err) { console.warn('[StudentSummaryScreen] share error:', err); }
   };
 
   return (

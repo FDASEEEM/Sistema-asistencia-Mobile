@@ -41,7 +41,7 @@ export default function LoginScreen() {
       if (supported) {
         await Linking.openURL(url);
       }
-    } catch (_) {}
+    } catch (err) { console.warn('[LoginScreen] openUrl error:', err); }
   };
 
   return (

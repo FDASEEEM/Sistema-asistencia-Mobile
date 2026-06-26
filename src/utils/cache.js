@@ -10,7 +10,7 @@ function normalizePayload(value) {
 export async function writeCache(key, value) {
   try {
     await SecureStore.setItemAsync(key, JSON.stringify(normalizePayload(value)));
-  } catch (_) {}
+  } catch (err) { console.warn('[cache] writeCache error:', err); }
 }
 
 export async function readCache(key) {
@@ -29,7 +29,8 @@ export async function readCache(key) {
       savedAt: parsed.savedAt || null,
       value: parsed.value,
     };
-  } catch (_) {
+  } catch (err) {
+    console.warn('[cache] readCache error:', err);
     return null;
   }
 }
@@ -37,5 +38,5 @@ export async function readCache(key) {
 export async function deleteCache(key) {
   try {
     await SecureStore.deleteItemAsync(key);
-  } catch (_) {}
+  } catch (err) { console.warn('[cache] deleteCache error:', err); }
 }
