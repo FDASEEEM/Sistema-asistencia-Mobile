@@ -39,23 +39,33 @@ function findLanIp() {
   return null;
 }
 
-const mode = process.argv[2] === "lan" ? "lan" : "tunnel";
+const modeArg = process.argv[2] || "tunnel";
+const expoMode = modeArg === "lan" || modeArg === "emu" || modeArg === "render" ? "lan" : "tunnel";
 const lanIp = findLanIp();
-const apiPort = Number(process.env.EXPO_API_PORT || 4000);
+const apiPort = Number(process.env.EXPO_API_PORT || 4100);
 const expoPort = Number(process.env.EXPO_PORT || 8081);
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || (lanIp ? `http://${lanIp}:${apiPort}/api` : undefined);
+const renderApiUrl = "https://sistema-asistencia-mobile.onrender.com/api";
+const apiUrl =
+  modeArg === "render"
+    ? renderApiUrl
+    : process.env.EXPO_PUBLIC_API_URL ||
+      (modeArg === "emu"
+        ? `http://10.0.2.2:${apiPort}/api`
+        : lanIp
+          ? `http://${lanIp}:${apiPort}/api`
+          : undefined);
 
 if (!apiUrl) {
   console.error("No pude detectar una IP local para la API. Define EXPO_PUBLIC_API_URL manualmente.");
   process.exit(1);
 }
 
-console.log(`[mobile] modo Expo: ${mode}`);
+console.log(`[mobile] modo Expo: ${expoMode}`);
 console.log(`[mobile] API URL: ${apiUrl}`);
 
 const isWin = process.platform === 'win32';
 const command = isWin ? 'npx.cmd' : 'npx';
-const args = ["expo", "start", `--${mode}`, "--port", String(expoPort)];
+const args = ["expo", "start", `--${expoMode}`, "--port", String(expoPort)];
 
 const child = spawn(
   command,
@@ -67,6 +77,7 @@ const child = spawn(
       ...process.env,
       EXPO_NO_DEPENDENCY_VALIDATION: "1",
       EXPO_PUBLIC_API_URL: apiUrl,
+      EXPO_PUBLIC_API_URL_ANDROID: apiUrl,
     },
   },
 );

@@ -2,7 +2,7 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 
-const PUBLIC_API_BASE_URL = "https://sistema-cesar-mobile-api.onrender.com/api";
+const PUBLIC_API_BASE_URL = "https://sistema-asistencia-mobile.onrender.com/api";
 
 function resolveDevHost() {
   const candidates = [
@@ -27,7 +27,7 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   process.env.EXPO_PUBLIC_API_URL_ANDROID ||
   Constants.expoConfig?.extra?.apiUrl ||
-  (fallbackHost ? `http://${fallbackHost}:4000/api` : PUBLIC_API_BASE_URL);
+  (fallbackHost ? `http://${fallbackHost}:4100/api` : PUBLIC_API_BASE_URL);
 
 export const mobileApi = axios.create({
   baseURL: API_BASE_URL,

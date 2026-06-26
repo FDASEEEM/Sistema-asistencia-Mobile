@@ -7,7 +7,7 @@ const owner = process.env.EXPO_OWNER || 'fdaseem';
 const publicApiUrl =
   process.env.EXPO_PUBLIC_API_URL ||
   process.env.EXPO_PUBLIC_API_URL_ANDROID ||
-  'https://sistema-cesar-mobile-api.onrender.com/api';
+  'https://sistema-asistencia-mobile.onrender.com/api';
 
 module.exports = () => ({
   expo: {

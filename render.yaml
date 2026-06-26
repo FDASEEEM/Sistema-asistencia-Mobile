@@ -12,6 +12,8 @@ services:
         value: production
       - key: APODERADOS_PG_SCHEMA
         value: test_pruebas
+      - key: APODERADOS_JWT_SECRET
+        sync: false
       - key: MOBILE_RUN_MIGRATIONS
         value: "true"
       - key: PG_SSL

@@ -120,7 +120,7 @@ CORS_ORIGINS=
 Cuando despliegues el backend, la app movil debe compilarse con esta URL publica:
 
 ```text
-EXPO_PUBLIC_API_URL=https://sistema-cesar-mobile-api.onrender.com/api
+EXPO_PUBLIC_API_URL=https://sistema-asistencia-mobile.onrender.com/api
 ```
 
 El APK generado por GitHub Actions ya usa esa URL por defecto.

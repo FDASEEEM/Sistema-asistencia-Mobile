@@ -14,6 +14,13 @@ const apoderadosRoutes = require('./routes/apoderados');
 const app = express();
 const PORT = process.env.PORT || 4100;
 const uploadsDir = path.join(__dirname, '..', 'uploads');
+const jwtSecret = process.env.APODERADOS_JWT_SECRET || process.env.JWT_SECRET;
+
+if (!jwtSecret) {
+  throw new Error(
+    'Falta APODERADOS_JWT_SECRET (o JWT_SECRET). Configuralo en Render antes de iniciar el backend.',
+  );
+}
 
 fs.mkdirSync(uploadsDir, { recursive: true });
 
