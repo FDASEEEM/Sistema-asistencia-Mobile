@@ -49,13 +49,13 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
 
       - name: Locate APK
         id: apk
         shell: bash
         run: |
-          apk_path="$(find android/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)"
+          apk_path="$(find android/app/build/outputs/apk/release -type f -name '*.apk' | head -n 1)"
           if [ -z "$apk_path" ]; then
             echo "No APK artifact was produced."
             exit 1
