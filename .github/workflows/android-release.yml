@@ -19,11 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: "true"
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       BACKEND_URL: https://sistema-asistencia-mobile.onrender.com/api
       EXPO_PUBLIC_API_URL: https://sistema-asistencia-mobile.onrender.com/api
       EXPO_PUBLIC_API_URL_ANDROID: https://sistema-asistencia-mobile.onrender.com/api
-      EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,20 +32,30 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
       - name: Install dependencies
         run: npm ci
 
       - name: Confirm backend URL
         run: echo "Building APK against $BACKEND_URL"
 
-      - name: Build APK with EAS local build
-        run: npx eas-cli@20.3.0 build --platform android --profile preview --local --non-interactive
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --non-interactive --clean
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug
 
       - name: Locate APK
         id: apk
         shell: bash
         run: |
-          apk_path="$(find "$EAS_LOCAL_BUILD_ARTIFACTS_DIR" -type f -name '*.apk' | head -n 1)"
+          apk_path="$(find android/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)"
           if [ -z "$apk_path" ]; then
             echo "No APK artifact was produced."
             exit 1
