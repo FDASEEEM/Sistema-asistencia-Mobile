@@ -103,7 +103,7 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
         const previousFrom = previousMonth.toISOString().slice(0, 10);
         const previousTo = from;
 
-        const [attendanceRows, previousAttendanceRows, lateRows, exitRows, latestEvents] = await Promise.all([
+        const results = await Promise.all([
             pool.query(
                 `SELECT COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) IN ('presente', 'justificado')) AS presentes,
                         COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) = 'ausente') AS ausentes,
@@ -154,6 +154,12 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
                 [estudianteId, estudianteId],
             ),
         ]);
+
+        const attendanceRows = results[0][0];
+        const previousAttendanceRows = results[1][0];
+        const lateRows = results[2][0];
+        const exitRows = results[3][0];
+        const latestEvents = results[4];
 
         const attendanceRowsData = attendanceRows[0];
         const previousAttendanceData = previousAttendanceRows[0];
