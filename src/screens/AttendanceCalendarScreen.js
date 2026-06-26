@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 import Screen from "../components/Screen";
 import { Surface } from "../components/Cards";
 import { mobileApi } from "../api/client";
 import { theme } from "../theme";
+import { readCache, writeCache } from "../utils/cache";
 
 const palette = {
   presente: "#12b886",
@@ -16,11 +17,37 @@ const palette = {
 export default function AttendanceCalendarScreen({ route }) {
   const { student } = route.params;
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [cachedAt, setCachedAt] = useState("");
 
   useEffect(() => {
     (async () => {
-      const { data } = await mobileApi.get(`/apoderados/estudiantes/${student.id}/asistencia-mensual`);
-      setItems(data.dias || []);
+      setLoading(true);
+      setError("");
+      const cacheKey = `attendance_month_${student.id}`;
+      const cached = await readCache(cacheKey);
+
+      if (cached?.value?.dias) {
+        setItems(cached.value.dias);
+        setCachedAt(cached.savedAt || "");
+      }
+
+      try {
+        const { data } = await mobileApi.get(`/apoderados/estudiantes/${student.id}/asistencia-mensual`);
+        setItems(data.dias || []);
+        setCachedAt(new Date().toISOString());
+        await writeCache(cacheKey, data);
+      } catch (err) {
+        if (!cached?.value?.dias) {
+          setItems([]);
+          setError(err?.response?.data?.error || err.message || "No se pudo cargar el calendario.");
+        } else {
+          setError("Mostrando el ultimo calendario guardado.");
+        }
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [student.id]);
 
@@ -33,24 +60,42 @@ export default function AttendanceCalendarScreen({ route }) {
             selected: true,
             selectedColor: palette[item.estado] || palette["sin estado"],
           },
-        ])
+        ]),
       ),
-    [items]
+    [items],
   );
 
   return (
     <Screen eyebrow="Calendario" title={`Mes de ${student.nombre}`} subtitle="Una vista mensual mucho mas clara para detectar patrones de asistencia.">
+      {error ? (
+        <Surface>
+          <Text style={styles.infoTitle}>Sincronizacion parcial</Text>
+          <Text style={styles.infoText}>{error}</Text>
+        </Surface>
+      ) : null}
+
+      {cachedAt ? <Text style={styles.cacheText}>Ultima sincronizacion: {cachedAt.slice(0, 16).replace("T", " ")}</Text> : null}
+
       <Surface>
-        <Calendar
-          markedDates={markedDates}
-          theme={{
-            todayTextColor: theme.colors.accent,
-            arrowColor: theme.colors.accent,
-            textDayFontWeight: "600",
-            textMonthFontWeight: "800",
-            textDayHeaderFontWeight: "700",
-          }}
-        />
+        {loading && !items.length ? (
+          <View style={styles.stateRow}>
+            <ActivityIndicator color={theme.colors.accent} />
+            <Text style={styles.infoText}>Cargando calendario...</Text>
+          </View>
+        ) : items.length ? (
+          <Calendar
+            markedDates={markedDates}
+            theme={{
+              todayTextColor: theme.colors.accent,
+              arrowColor: theme.colors.accent,
+              textDayFontWeight: "600",
+              textMonthFontWeight: "800",
+              textDayHeaderFontWeight: "700",
+            }}
+          />
+        ) : (
+          <Text style={styles.infoText}>Todavia no hay dias registrados para este estudiante.</Text>
+        )}
       </Surface>
 
       <Surface>
@@ -97,5 +142,27 @@ const styles = StyleSheet.create({
   legendText: {
     color: theme.colors.ink,
     fontWeight: "600",
+  },
+  infoTitle: {
+    color: theme.colors.ink,
+    fontWeight: "800",
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  infoText: {
+    color: theme.colors.inkSoft,
+    lineHeight: 20,
+  },
+  cacheText: {
+    color: theme.colors.inkMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  stateRow: {
+    minHeight: 80,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
 });

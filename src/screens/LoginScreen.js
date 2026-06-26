@@ -1,9 +1,13 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import Screen from "../components/Screen";
+import { ActivityIndicator, Image, Linking, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Surface } from "../components/Cards";
 import { theme } from "../theme";
 import { useAuth } from "../context/AuthContext";
-import { API_BASE_URL } from "../api/client";
+
+const logo = require("../../logoamj.png");
+const GITHUB_URL = "https://github.com/FDASEEEM";
+const MAIL_URL = "mailto:javi.arancibiav@duocuc.cl";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -15,111 +19,223 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
+
     try {
       await login(email, password);
     } catch (err) {
       if (!err.response) {
-        setError(`No hubo respuesta del backend. API actual: ${API_BASE_URL}`);
+        setError("No hubo respuesta del backend. Revisa la conexion.");
       } else if (err.response.status === 404) {
-        setError(`La API movil no existe en este servidor. API actual: ${API_BASE_URL}`);
+        setError("La API movil no existe en este servidor.");
       } else {
-        setError(err.response?.data?.error || `No se pudo iniciar sesion. API actual: ${API_BASE_URL}`);
+        setError(err.response?.data?.error || "No se pudo iniciar sesion.");
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const openUrl = async (url) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (_) {}
+  };
+
   return (
-    <Screen eyebrow="Sistema Cesar" title="Portal movil para apoderados" subtitle="Consulta asistencia, atrasos, salidas y anuncios del colegio desde una sola app." scroll={false} variant="hero">
-      <View style={styles.panel}>
-        <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Acceso seguro</Text>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.backdrop} pointerEvents="none">
+        <View style={[styles.orb, styles.orbOne]} />
+        <View style={[styles.orb, styles.orbTwo]} />
+      </View>
+
+      <View style={styles.content}>
+        <View style={styles.brandBlock}>
+          <View style={styles.logoWrap}>
+            <Image source={logo} style={styles.logo} resizeMode="contain" />
           </View>
-          <Text style={styles.helper}>API actual: {API_BASE_URL}</Text>
+          <Text style={styles.brandTitle}>Sistema Gestion de Asistencia AMJ</Text>
         </View>
 
-        <Text style={styles.label}>Correo</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-          placeholder="apoderado@colegio.cl"
-          placeholderTextColor="#7f96b3"
-        />
+        <Surface style={styles.card}>
+          <View style={styles.form}>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
+              style={styles.input}
+              placeholder="Correo"
+              placeholderTextColor={theme.colors.inkMuted}
+            />
 
-        <Text style={styles.label}>Contrasena</Text>
-        <TextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry placeholder="Tu contrasena" placeholderTextColor="#7f96b3" />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="password"
+              textContentType="password"
+              returnKeyType="done"
+              style={styles.input}
+              placeholder="Contrasena"
+              placeholderTextColor={theme.colors.inkMuted}
+            />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
-        </Pressable>
+            <Pressable style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, loading && styles.buttonDisabled]} onPress={handleLogin} disabled={loading}>
+              {loading ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.buttonText}>Entrar</Text>}
+            </Pressable>
+          </View>
+        </Surface>
+
+        <View style={styles.socialRow}>
+          <View style={styles.socialIconWrap}>
+            <MaterialCommunityIcons name="whatsapp" size={18} color={theme.colors.inkSoft} />
+          </View>
+          <Pressable style={({ pressed }) => [styles.socialIconWrap, pressed && styles.socialPressed]} onPress={() => openUrl(GITHUB_URL)}>
+            <MaterialCommunityIcons name="github" size={18} color={theme.colors.inkSoft} />
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.socialIconWrap, pressed && styles.socialPressed]} onPress={() => openUrl(MAIL_URL)}>
+            <MaterialCommunityIcons name="gmail" size={18} color={theme.colors.inkSoft} />
+          </Pressable>
+        </View>
       </View>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: 20,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadow.card,
+  safe: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
   },
-  badgeRow: {
-    gap: 10,
-    marginBottom: 4,
+  content: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 86,
+    paddingBottom: 40,
+    gap: 18,
   },
-  badge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+  backdrop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 240,
+  },
+  orb: {
+    position: "absolute",
+    borderRadius: 999,
     backgroundColor: theme.colors.primarySoft,
+    opacity: 0.7,
   },
-  badgeText: {
+  orbOne: {
+    width: 150,
+    height: 150,
+    top: 10,
+    right: -45,
+  },
+  orbTwo: {
+    width: 90,
+    height: 90,
+    top: 124,
+    left: -22,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  card: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderColor: theme.colors.border,
+    borderRadius: 20,
+    padding: 20,
+    width: "100%",
+    maxWidth: 420,
+  },
+  brandBlock: {
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 2,
+  },
+  logoWrap: {
+    width: 102,
+    height: 122,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logo: {
+    width: 92,
+    height: 112,
+  },
+  brandTitle: {
     color: theme.colors.ink,
+    fontSize: 18,
     fontWeight: "700",
-    fontSize: 12,
+    textAlign: "center",
+    letterSpacing: 0.2,
   },
-  helper: {
-    color: theme.colors.inkSoft,
-    fontSize: 12,
-  },
-  label: {
-    color: theme.colors.ink,
-    fontWeight: "700",
+  form: {
+    gap: 12,
   },
   input: {
-    backgroundColor: theme.colors.surfaceAlt,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: theme.colors.ink,
   },
-  button: {
-    marginTop: 10,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    alignItems: "center",
-    paddingVertical: 16,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
   error: {
     color: theme.colors.danger,
+    lineHeight: 18,
+    paddingTop: 2,
+  },
+  button: {
+    marginTop: 8,
+    minHeight: 50,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  buttonPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
+  },
+  buttonDisabled: {
+    opacity: 0.72,
+  },
+  buttonText: {
+    color: theme.colors.white,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  socialRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 4,
+  },
+  socialIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.72)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  socialPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.97 }],
   },
 });

@@ -96,16 +96,32 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
         monthStart.setHours(0, 0, 0, 0);
         const nextMonth = new Date(monthStart);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
+        const previousMonth = new Date(monthStart);
+        previousMonth.setMonth(previousMonth.getMonth() - 1);
         const from = monthStart.toISOString().slice(0, 10);
         const to = nextMonth.toISOString().slice(0, 10);
+        const previousFrom = previousMonth.toISOString().slice(0, 10);
+        const previousTo = from;
 
-        const [attendanceRows, lateRows, exitRows, latestEvents] = await Promise.all([
+        const [attendanceRows, previousAttendanceRows, lateRows, exitRows, latestEvents] = await Promise.all([
             pool.query(
-                `SELECT COUNT(*) FILTER (WHERE estado IN ('presente', 'justificado')) AS presentes,
+                `SELECT COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) IN ('presente', 'justificado')) AS presentes,
+                        COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) = 'ausente') AS ausentes,
                         COUNT(*) AS total
                  FROM tabla_asistencia_registros
-                 WHERE estudiante_id = ?`,
-                [estudianteId],
+                 WHERE estudiante_id = ?
+                   AND fecha >= ?::date
+                   AND fecha < ?::date`,
+                [estudianteId, from, to],
+            ),
+            pool.query(
+                `SELECT COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) IN ('presente', 'justificado')) AS presentes,
+                        COUNT(*) AS total
+                 FROM tabla_asistencia_registros
+                 WHERE estudiante_id = ?
+                   AND fecha >= ?::date
+                   AND fecha < ?::date`,
+                [estudianteId, previousFrom, previousTo],
             ),
             pool.query(
                 `SELECT COUNT(*) AS atrasos_mes,
@@ -140,12 +156,25 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
         ]);
 
         const attendanceRowsData = attendanceRows[0];
+        const previousAttendanceData = previousAttendanceRows[0];
         const lateRowsData = lateRows[0];
         const exitRowsData = exitRows[0];
         const latestEventsData = latestEvents[0];
         const presentes = Number(attendanceRowsData?.presentes || 0);
+        const ausentes = Number(attendanceRowsData?.ausentes || 0);
         const total = Number(attendanceRowsData?.total || 0);
         const porcentaje = total > 0 ? Number(((presentes / total) * 100).toFixed(1)) : 0;
+        const previousPresentes = Number(previousAttendanceData?.presentes || 0);
+        const previousTotal = Number(previousAttendanceData?.total || 0);
+        const previousPorcentaje = previousTotal > 0 ? Number(((previousPresentes / previousTotal) * 100).toFixed(1)) : 0;
+        const deltaAsistencia = Number((porcentaje - previousPorcentaje).toFixed(1));
+
+        let estadoResumen = 'atencion';
+        if (porcentaje >= 95) {
+            estadoResumen = 'excelente';
+        } else if (porcentaje >= 85) {
+            estadoResumen = 'estable';
+        }
 
         const result = {
             estudiante: {
@@ -153,6 +182,11 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
                 foto_url: buildAbsoluteUploadUrl(req, req.estudiante.foto_url),
             },
             porcentaje_asistencia: porcentaje,
+            porcentaje_asistencia_anterior: previousPorcentaje,
+            delta_asistencia: deltaAsistencia,
+            estado_resumen: estadoResumen,
+            total_presencias_mes: presentes,
+            total_ausencias_mes: ausentes,
             total_registros_asistencia: total,
             total_atrasos_mes: Number(lateRowsData?.atrasos_mes || 0),
             promedio_minutos_retraso: Number(lateRowsData?.promedio_minutos_retraso || 0),
@@ -176,7 +210,7 @@ router.get('/estudiantes/:id/asistencia-mensual', requireOwnedStudent, async (re
 
     try {
         const [attendanceTable] = await pool.query(
-            `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, estado
+            `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, LOWER(TRIM(estado)) AS estado
              FROM tabla_asistencia_registros
              WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date`,
             [req.estudiante.id, from, to],

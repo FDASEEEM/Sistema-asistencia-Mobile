@@ -14,7 +14,7 @@ const loginLimiter = process.env.NODE_ENV === 'production'
         max: 10,
         standardHeaders: true,
         legacyHeaders: false,
-        message: { error: 'Demasiados intentos de inicio de sesión.' },
+        message: { error: 'Demasiados intentos de inicio de sesion.' },
     })
     : (req, res, next) => next();
 
@@ -71,7 +71,7 @@ router.post('/login', loginLimiter, validate('login'), async (req, res) => {
 router.post('/refresh', async (req, res) => {
     const refreshToken = req.body?.refreshToken;
     if (!refreshToken) {
-        return res.status(401).json({ error: 'No hay sesión activa.' });
+        return res.status(401).json({ error: 'No hay sesion activa.' });
     }
 
     try {
@@ -85,7 +85,7 @@ router.post('/refresh', async (req, res) => {
 
         const tokenRow = rows[0];
         if (!tokenRow) {
-            return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
+            return res.status(401).json({ error: 'Sesion expirada. Inicia sesion de nuevo.' });
         }
 
         if (!tokenRow.activo) {
@@ -133,7 +133,7 @@ router.post('/logout', async (req, res) => {
         } catch (_) {}
     }
 
-    res.json({ message: 'Sesión cerrada correctamente.' });
+    res.json({ message: 'Sesion cerrada correctamente.' });
 });
 
 router.get('/me', apoderadoAuth, async (req, res) => {
@@ -144,13 +144,19 @@ router.put('/me', apoderadoAuth, async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const telefono = String(req.body?.telefono || '').trim();
     const password = String(req.body?.password || '').trim();
+    const newPassword = String(req.body?.newPassword || '').trim();
+    const revokeOtherSessions = Boolean(req.body?.revokeOtherSessions);
 
     if (!email || !password) {
         return res.status(400).json({ error: 'Correo y clave son requeridos para actualizar el perfil.' });
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return res.status(400).json({ error: 'Debes ingresar un correo válido.' });
+        return res.status(400).json({ error: 'Debes ingresar un correo valido.' });
+    }
+
+    if (newPassword && newPassword.length < 8) {
+        return res.status(400).json({ error: 'La nueva clave debe tener al menos 8 caracteres.' });
     }
 
     try {
@@ -179,15 +185,26 @@ router.put('/me', apoderadoAuth, async (req, res) => {
         );
 
         if (duplicateRows.length > 0) {
-            return res.status(400).json({ error: 'Ese correo ya está registrado por otro apoderado.' });
+            return res.status(400).json({ error: 'Ese correo ya esta registrado por otro apoderado.' });
         }
+
+        const nextPasswordHash = newPassword ? await bcrypt.hash(newPassword, 10) : null;
 
         await pool.query(
             `UPDATE apoderados
-             SET email = ?, telefono = ?
+             SET email = ?, telefono = ?, password_hash = COALESCE(?, password_hash), actualizado_en = NOW()
              WHERE id = ?`,
-            [email, telefono || null, req.apoderado.id],
+            [email, telefono || null, nextPasswordHash, req.apoderado.id],
         );
+
+        if (revokeOtherSessions) {
+            await pool.query(
+                `UPDATE apoderado_refresh_tokens
+                 SET revocado = TRUE
+                 WHERE apoderado_id = ?`,
+                [req.apoderado.id],
+            );
+        }
 
         const [updatedRows] = await pool.query(
             `SELECT id, nombre, apellido, email, telefono, activo

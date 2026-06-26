@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { mobileApi } from "../api/client";
 import { registerPushToken } from "../notifications/registerPushToken";
+import { deleteCache } from "../utils/cache";
 
 const AuthContext = createContext(null);
 
@@ -49,6 +50,12 @@ export function AuthProvider({ children }) {
     await SecureStore.deleteItemAsync("apoderado_access_token");
     await SecureStore.deleteItemAsync("apoderado_refresh_token");
     await SecureStore.deleteItemAsync("last_student_id");
+    await deleteCache("students_list");
+    await deleteCache("announcements_list");
+    await deleteCache("notifications_list");
+    await deleteCache("requests_justificaciones");
+    await deleteCache("requests_salidas");
+    await deleteCache("alert_center_payload");
     setUser(null);
   };
 
