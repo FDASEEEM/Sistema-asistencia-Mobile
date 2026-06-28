@@ -22,7 +22,11 @@ export function AuthProvider({ children }) {
       try {
         const { data } = await mobileApi.get("/apoderados/auth/me");
         setUser(data.apoderado);
-        await registerPushToken();
+        try {
+          await registerPushToken();
+        } catch (pushErr) {
+          console.warn('[AuthContext] registerPushToken error:', pushErr);
+        }
       } catch (err) {
         console.warn('[AuthContext] /me error:', err);
         await SecureStore.deleteItemAsync("apoderado_access_token");

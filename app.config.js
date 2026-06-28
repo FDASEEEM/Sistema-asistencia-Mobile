@@ -4,10 +4,7 @@ const androidPackage = 'com.sistemacesar.apoderados';
 const version = '1.0.0';
 const projectId = '5d7a5508-21d9-49ef-9eb5-4a9a8fe251af';
 const owner = process.env.EXPO_OWNER || 'fdaseem';
-const publicApiUrl =
-  process.env.EXPO_PUBLIC_API_URL ||
-  process.env.EXPO_PUBLIC_API_URL_ANDROID ||
-  'https://sistema-asistencia-mobile.onrender.com/api';
+const publicApiUrl = 'https://sistema-asistencia-mobile.onrender.com/api';
 
 module.exports = () => ({
   expo: {
@@ -23,7 +20,7 @@ module.exports = () => ({
       eas: {
         projectId: process.env.EXPO_PROJECT_ID || process.env.EXPO_PUBLIC_EAS_PROJECT_ID || projectId,
       },
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || publicApiUrl,
+      apiUrl: publicApiUrl,
     },
     android: {
       package: androidPackage,

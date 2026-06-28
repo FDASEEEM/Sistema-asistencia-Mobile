@@ -1,4 +1,5 @@
 const { networkInterfaces } = require("os");
+const fs = require("fs");
 const { execSync, spawn } = require("child_process");
 
 function findLanIp() {
@@ -39,26 +40,50 @@ function findLanIp() {
   return null;
 }
 
+function findAdbPath() {
+  const candidates = [
+    process.env.ANDROID_SDK_ROOT ? `${process.env.ANDROID_SDK_ROOT}\\platform-tools\\adb.exe` : null,
+    process.env.ANDROID_HOME ? `${process.env.ANDROID_HOME}\\platform-tools\\adb.exe` : null,
+    process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe` : null,
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
 const modeArg = process.argv[2] || "tunnel";
-const expoMode = modeArg === "lan" || modeArg === "emu" || modeArg === "render" ? "lan" : "tunnel";
+const adbPath = findAdbPath();
 const lanIp = findLanIp();
 const apiPort = Number(process.env.EXPO_API_PORT || 4100);
-const expoPort = Number(process.env.EXPO_PORT || 8081);
+const expoPort = Number(process.env.EXPO_PORT || (modeArg === "emu" ? 8082 : 8081));
+const expoMode = modeArg === "lan" ? "lan" : modeArg === "emu" ? "localhost" : "tunnel";
 const renderApiUrl = "https://sistema-asistencia-mobile.onrender.com/api";
 const apiUrl =
-  modeArg === "render"
+  modeArg === "render" || modeArg === "emu"
     ? renderApiUrl
     : process.env.EXPO_PUBLIC_API_URL ||
-      (modeArg === "emu"
-        ? `http://10.0.2.2:${apiPort}/api`
-        : lanIp
-          ? `http://${lanIp}:${apiPort}/api`
-          : undefined);
+      (lanIp ? `http://${lanIp}:${apiPort}/api` : undefined);
 
 if (!apiUrl) {
   console.error("No pude detectar una IP local para la API. Define EXPO_PUBLIC_API_URL manualmente.");
   process.exit(1);
 }
+
+function configureAdbReverse() {
+  if (modeArg !== "emu" || !adbPath) {
+    return;
+  }
+
+  try {
+    execSync(`"${adbPath}" reverse tcp:${expoPort} tcp:${expoPort}`, {
+      stdio: "ignore",
+    });
+    console.log(`[mobile] adb reverse configurado para ${expoPort}`);
+  } catch (error) {
+    console.warn(`[mobile] No se pudo configurar adb reverse: ${error.message}`);
+  }
+}
+
+configureAdbReverse();
 
 console.log(`[mobile] modo Expo: ${expoMode}`);
 console.log(`[mobile] API URL: ${apiUrl}`);
@@ -66,6 +91,11 @@ console.log(`[mobile] API URL: ${apiUrl}`);
 const isWin = process.platform === 'win32';
 const command = isWin ? 'npx.cmd' : 'npx';
 const args = ["expo", "start", `--${expoMode}`, "--port", String(expoPort)];
+
+if (modeArg === "emu") {
+  args.push("--dev-client");
+  args.push("--android");
+}
 
 const child = spawn(
   command,

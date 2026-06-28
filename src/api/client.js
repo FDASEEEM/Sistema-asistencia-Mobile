@@ -4,30 +4,9 @@ import Constants from "expo-constants";
 
 const PUBLIC_API_BASE_URL = "https://sistema-asistencia-mobile.onrender.com/api";
 
-function resolveDevHost() {
-  const candidates = [
-    Constants.expoConfig?.hostUri,
-    Constants.manifest2?.extra?.expoClient?.hostUri,
-    Constants.manifest?.debuggerHost,
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    const host = String(candidate).split(":")[0];
-    const looksLikeTunnel = host.includes("exp.direct") || host.includes("expo.dev");
-    if (host && host !== "localhost" && host !== "127.0.0.1" && !looksLikeTunnel) {
-      return host;
-    }
-  }
-
-  return null;
-}
-
-const fallbackHost = resolveDevHost();
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  process.env.EXPO_PUBLIC_API_URL_ANDROID ||
   Constants.expoConfig?.extra?.apiUrl ||
-  (fallbackHost ? `http://${fallbackHost}:4100/api` : PUBLIC_API_BASE_URL);
+  PUBLIC_API_BASE_URL;
 
 export const mobileApi = axios.create({
   baseURL: API_BASE_URL,

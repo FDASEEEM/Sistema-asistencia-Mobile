@@ -16,31 +16,36 @@ export async function registerPushToken() {
     return null;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
 
-  if (finalStatus !== "granted") {
+    if (finalStatus !== "granted") {
+      return null;
+    }
+
+    const tokenResponse = await Notifications.getExpoPushTokenAsync({
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || Constants?.expoConfig?.extra?.eas?.projectId,
+    });
+
+    const token = tokenResponse.data;
+    if (!token) {
+      return null;
+    }
+
+    await mobileApi.put("/apoderados/push-token", {
+      token,
+      plataforma: Device.osName?.toLowerCase() || "android",
+    });
+
+    return token;
+  } catch (error) {
+    console.warn("[registerPushToken] No se pudo registrar el token:", error?.message || error);
     return null;
   }
-
-  const tokenResponse = await Notifications.getExpoPushTokenAsync({
-    projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || Constants?.expoConfig?.extra?.eas?.projectId,
-  });
-
-  const token = tokenResponse.data;
-  if (!token) {
-    return null;
-  }
-
-  await mobileApi.put("/apoderados/push-token", {
-    token,
-    plataforma: Device.osName?.toLowerCase() || "android",
-  });
-
-  return token;
 }
