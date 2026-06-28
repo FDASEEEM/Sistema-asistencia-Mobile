@@ -8,6 +8,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const DEMO_PASSWORD = 'apoderado123';
+const DEMO_TEACHER_PASSWORD = 'profesor123';
 const DEFAULT_GUARDIAN = {
   1: {
     rut: '11111111-1',
@@ -133,6 +134,24 @@ async function ensureGuards() {
       [id, guardian.rut, guardian.nombre, guardian.apellido, guardian.email, guardian.telefono, passwordHash],
     );
   }
+}
+
+async function ensureDemoTeacher() {
+  const passwordHash = await bcrypt.hash(DEMO_TEACHER_PASSWORD, 10);
+  const [rows] = await pool.query(
+    `INSERT INTO usuarios (nombre, email, password_hash, rol, activo)
+     VALUES (?, ?, ?, ?, TRUE)
+     ON CONFLICT (email)
+     DO UPDATE SET
+       nombre = EXCLUDED.nombre,
+       password_hash = EXCLUDED.password_hash,
+       rol = 'profesor',
+       activo = TRUE
+     RETURNING id`,
+    ['Paula Torres', 'profesora.jefe@colegio.cl', passwordHash, 'profesor'],
+  );
+
+  return rows[0].id;
 }
 
 async function ensureDemoStudents() {
@@ -427,9 +446,134 @@ async function seedRequests(students) {
   }
 }
 
+function shiftDate(base, offsetDays) {
+  const date = new Date(base);
+  date.setDate(date.getDate() + offsetDays);
+  return toIsoDate(date);
+}
+
+async function seedAcademicCalendar(students, teacherId, courseId) {
+  if (!students.length || !courseId) {
+    return;
+  }
+
+  await pool.query(
+    `UPDATE cursos
+     SET profesor_jefe_id = ?
+     WHERE id = ?`,
+    [teacherId, courseId],
+  );
+
+  const subjects = [
+    { nombre: 'Lenguaje', descripcion: 'Comprension lectora y redaccion' },
+    { nombre: 'Matematicas', descripcion: 'Numeros, operaciones y problemas' },
+    { nombre: 'Ciencias', descripcion: 'Ciencias naturales y experimentales' },
+  ];
+
+  const subjectIds = {};
+  for (const subject of subjects) {
+    const [rows] = await pool.query(
+      `INSERT INTO materias (curso_id, nombre, descripcion, activa)
+       VALUES (?, ?, ?, TRUE)
+       ON CONFLICT (curso_id, nombre)
+       DO UPDATE SET descripcion = EXCLUDED.descripcion, activa = TRUE
+       RETURNING id`,
+      [courseId, subject.nombre, subject.descripcion],
+    );
+    subjectIds[subject.nombre] = rows[0].id;
+  }
+
+  const today = new Date();
+  const feriados = [
+    { fecha: shiftDate(today, -2), nombre: 'Feriado demo: Reunion escolar', descripcion: 'Feriado cargado para validar el calendario', alcance: 'colegio' },
+    { fecha: shiftDate(today, 5), nombre: 'Feriado demo: Dia administrativo', descripcion: 'Ejemplo de feriado dentro del mes', alcance: 'nacional' },
+  ];
+
+  for (const holiday of feriados) {
+    await pool.query(
+      `INSERT INTO feriados (fecha, nombre, descripcion, alcance, activo)
+       VALUES (?, ?, ?, ?, TRUE)
+       ON CONFLICT (fecha)
+       DO UPDATE SET nombre = EXCLUDED.nombre, descripcion = EXCLUDED.descripcion, alcance = EXCLUDED.alcance, activo = TRUE`,
+      [holiday.fecha, holiday.nombre, holiday.descripcion, holiday.alcance],
+    );
+  }
+
+  await pool.query(
+    `DELETE FROM pruebas
+     WHERE titulo ILIKE ? OR descripcion ILIKE ?`,
+    ['%demo%', '%demo%'],
+  ).catch(() => {});
+
+  const pruebas = [
+    {
+      fecha: shiftDate(today, 1),
+      hora_inicio: '08:30:00',
+      hora_fin: '09:15:00',
+      titulo: 'Prueba de Lenguaje',
+      descripcion: 'Comprension lectora y vocabulario',
+      sala: 'Sala 3',
+      tipo: 'prueba',
+      materia_id: subjectIds['Lenguaje'],
+    },
+    {
+      fecha: shiftDate(today, 4),
+      hora_inicio: '10:00:00',
+      hora_fin: '10:45:00',
+      titulo: 'Control de Matematicas',
+      descripcion: 'Operaciones basicas y problemas',
+      sala: 'Sala 1',
+      tipo: 'evaluacion',
+      materia_id: subjectIds['Matematicas'],
+    },
+  ];
+
+  for (const test of pruebas) {
+    await pool.query(
+      `INSERT INTO pruebas (materia_id, fecha, hora_inicio, hora_fin, titulo, descripcion, sala, tipo, creado_por, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      [test.materia_id, test.fecha, test.hora_inicio, test.hora_fin, test.titulo, test.descripcion, test.sala, test.tipo, teacherId],
+    );
+  }
+
+  await pool.query(
+    `DELETE FROM anotaciones
+     WHERE titulo ILIKE ? OR descripcion ILIKE ?`,
+    ['%demo%', '%demo%'],
+  ).catch(() => {});
+
+  const annotations = [
+    {
+      estudiante: students[0],
+      fecha: shiftDate(today, -1),
+      tipo: 'positiva',
+      gravedad: 'baja',
+      titulo: 'Destacado en clase',
+      descripcion: 'Participa con seguridad y completa sus actividades a tiempo.',
+    },
+    {
+      estudiante: students[1] || students[0],
+      fecha: shiftDate(today, 2),
+      tipo: 'observacion',
+      gravedad: 'media',
+      titulo: 'Uso de uniforme incompleto',
+      descripcion: 'Se registra observacion menor para seguimiento del apoderado.',
+    },
+  ].filter((item) => item.estudiante);
+
+  for (const note of annotations) {
+    await pool.query(
+      `INSERT INTO anotaciones (estudiante_id, curso_id, fecha, tipo, gravedad, titulo, descripcion, visible_apoderado, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?)` ,
+      [note.estudiante.id, courseId, note.fecha, note.tipo, note.gravedad, note.titulo, note.descripcion, teacherId],
+    );
+  }
+}
+
 async function main() {
   await ensureSchemaTables();
   await ensureGuards();
+  const teacherId = await ensureDemoTeacher();
   await ensureDemoStudents();
 
   const [students] = await pool.query(
@@ -442,6 +586,11 @@ async function main() {
 
   if (students.length === 0) {
     throw new Error('No hay estudiantes vinculados a apoderados en el schema de pruebas.');
+  }
+
+  const courseId = students[0]?.curso_id || null;
+  if (courseId) {
+    await seedAcademicCalendar(students, teacherId, courseId);
   }
 
   await seedAttendance(students);

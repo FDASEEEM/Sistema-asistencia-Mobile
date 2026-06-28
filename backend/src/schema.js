@@ -17,7 +17,67 @@ async function ensureMobileSchema() {
     CREATE TABLE IF NOT EXISTS cursos (
       id SERIAL PRIMARY KEY,
       nombre VARCHAR(80) NOT NULL UNIQUE,
+      profesor_jefe_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
       activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS profesor_jefe_id INT REFERENCES usuarios(id) ON DELETE SET NULL`);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS materias (
+      id SERIAL PRIMARY KEY,
+      curso_id INT NOT NULL REFERENCES cursos(id) ON DELETE CASCADE,
+      nombre VARCHAR(120) NOT NULL,
+      descripcion TEXT,
+      activa BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (curso_id, nombre)
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS feriados (
+      id SERIAL PRIMARY KEY,
+      fecha DATE NOT NULL UNIQUE,
+      nombre VARCHAR(160) NOT NULL,
+      descripcion TEXT,
+      alcance VARCHAR(30) NOT NULL DEFAULT 'nacional',
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS pruebas (
+      id SERIAL PRIMARY KEY,
+      materia_id INT NOT NULL REFERENCES materias(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL,
+      hora_inicio TIME,
+      hora_fin TIME,
+      titulo VARCHAR(180) NOT NULL,
+      descripcion TEXT,
+      sala VARCHAR(80),
+      tipo VARCHAR(40) NOT NULL DEFAULT 'evaluacion',
+      creado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS anotaciones (
+      id SERIAL PRIMARY KEY,
+      estudiante_id INT NOT NULL REFERENCES estudiantes(id) ON DELETE CASCADE,
+      curso_id INT NOT NULL REFERENCES cursos(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL,
+      tipo VARCHAR(30) NOT NULL DEFAULT 'observacion',
+      gravedad VARCHAR(30) NOT NULL DEFAULT 'media',
+      titulo VARCHAR(180) NOT NULL,
+      descripcion TEXT NOT NULL,
+      visible_apoderado BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
       creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
@@ -194,6 +254,11 @@ async function ensureMobileSchema() {
   await db.query(`ALTER TABLE estudiantes ADD COLUMN IF NOT EXISTS foto_url TEXT`);
 
   await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_estudiante_apoderado_apoderado ON estudiante_apoderado (apoderado_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_cursos_profesor_jefe ON cursos (profesor_jefe_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_materias_curso ON materias (curso_id, activa)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_pruebas_fecha ON pruebas (fecha, materia_id, activo)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_anotaciones_estudiante_fecha ON anotaciones (estudiante_id, fecha DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_feriados_fecha ON feriados (fecha, activo)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_asistencia_estudiante_fecha ON asistencia (estudiante_id, fecha, es_atraso)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_tabla_asistencia_estudiante_fecha ON tabla_asistencia_registros (estudiante_id, fecha)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_mobile_salidas_estudiante_fecha ON salidas_anticipadas (estudiante_id, fecha)`);

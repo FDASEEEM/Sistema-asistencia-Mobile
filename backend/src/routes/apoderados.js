@@ -15,6 +15,24 @@ const {
 const router = express.Router();
 const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
+function buildCoursePayload(student) {
+    if (!student?.curso_id) {
+        return null;
+    }
+
+    return {
+        id: student.curso_id,
+        nombre: student.curso_nombre,
+        profesor_jefe: student.profesor_jefe_id ? {
+            id: student.profesor_jefe_id,
+            nombre: student.profesor_jefe_nombre,
+            apellido: student.profesor_jefe_apellido,
+            email: student.profesor_jefe_email,
+            telefono: student.profesor_jefe_telefono,
+        } : null,
+    };
+}
+
 const upload = multer({
     dest: 'uploads/',
     limits: { fileSize: 5 * 1024 * 1024 },
@@ -64,18 +82,26 @@ function mapAttendanceDay(baseState, attendanceRow, retiroRow) {
 router.get('/estudiantes', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT e.id, e.nombre, e.apellido, e.rut, e.foto_url, e.curso_id, c.nombre AS curso_nombre
-             FROM estudiante_apoderado ea
-             JOIN estudiantes e ON e.id = ea.estudiante_id
-             JOIN cursos c ON c.id = e.curso_id
-             WHERE ea.apoderado_id = ? AND e.activo = TRUE
-             ORDER BY c.nombre ASC, e.apellido ASC`,
+            `SELECT e.id, e.nombre, e.apellido, e.rut, e.foto_url, e.curso_id,
+                    c.nombre AS curso_nombre,
+                    c.profesor_jefe_id,
+                    pj.nombre AS profesor_jefe_nombre,
+                    pj.apellido AS profesor_jefe_apellido,
+                    pj.email AS profesor_jefe_email,
+                    pj.telefono AS profesor_jefe_telefono
+              FROM estudiante_apoderado ea
+              JOIN estudiantes e ON e.id = ea.estudiante_id
+              JOIN cursos c ON c.id = e.curso_id
+              LEFT JOIN usuarios pj ON pj.id = c.profesor_jefe_id
+              WHERE ea.apoderado_id = ? AND e.activo = TRUE
+              ORDER BY c.nombre ASC, e.apellido ASC`,
             [req.apoderado.id],
         );
 
         res.json(rows.map((student) => ({
             ...student,
             foto_url: buildAbsoluteUploadUrl(req, student.foto_url),
+            curso: buildCoursePayload(student),
         })));
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -186,6 +212,7 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
             estudiante: {
                 ...req.estudiante,
                 foto_url: buildAbsoluteUploadUrl(req, req.estudiante.foto_url),
+                curso: buildCoursePayload(req.estudiante),
             },
             porcentaje_asistencia: porcentaje,
             porcentaje_asistencia_anterior: previousPorcentaje,
@@ -243,6 +270,7 @@ router.get('/estudiantes/:id/asistencia-mensual', requireOwnedStudent, async (re
             estudiante: {
                 ...req.estudiante,
                 foto_url: buildAbsoluteUploadUrl(req, req.estudiante.foto_url),
+                curso: buildCoursePayload(req.estudiante),
             },
             mes: month,
             dias: dates.map((date) => ({
@@ -252,6 +280,220 @@ router.get('/estudiantes/:id/asistencia-mensual', requireOwnedStudent, async (re
         };
         cache.set(cacheKey, result);
         res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/estudiantes/:id/calendario-mensual', requireOwnedStudent, async (req, res) => {
+    const { from, to, month } = getMonthRange(req.query.mes);
+    const cacheKey = `calendario_${req.apoderado.id}_${req.estudiante.id}_${month}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return res.json(cached);
+    }
+
+    try {
+        const [attendanceTable, arrivalRows, exitRows, holidayRows, testRows, annotationRows] = await Promise.all([
+            pool.query(
+                `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, LOWER(TRIM(estado)) AS estado
+                 FROM tabla_asistencia_registros
+                 WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date`,
+                [req.estudiante.id, from, to],
+            ),
+            pool.query(
+                `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, hora_ingreso, es_atraso, justificado, minutos_retraso
+                 FROM asistencia
+                 WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date`,
+                [req.estudiante.id, from, to],
+            ),
+            pool.query(
+                `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, hora_salida, motivo
+                 FROM salidas_anticipadas
+                 WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date`,
+                [req.estudiante.id, from, to],
+            ),
+            pool.query(
+                `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, nombre, descripcion, alcance
+                 FROM feriados
+                 WHERE activo = TRUE AND fecha >= ?::date AND fecha < ?::date
+                 ORDER BY fecha ASC`,
+                [from, to],
+            ),
+            pool.query(
+                `SELECT TO_CHAR(p.fecha, 'YYYY-MM-DD') AS fecha,
+                        p.id,
+                        p.titulo,
+                        p.descripcion,
+                        p.hora_inicio,
+                        p.hora_fin,
+                        p.sala,
+                        p.tipo,
+                        m.id AS materia_id,
+                        m.nombre AS materia_nombre
+                 FROM pruebas p
+                 JOIN materias m ON m.id = p.materia_id
+                 WHERE p.activo = TRUE
+                   AND m.activa = TRUE
+                   AND m.curso_id = ?
+                   AND p.fecha >= ?::date AND p.fecha < ?::date
+                 ORDER BY p.fecha ASC, p.hora_inicio ASC NULLS LAST, p.titulo ASC`,
+                [req.estudiante.curso_id, from, to],
+            ),
+            pool.query(
+                `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
+                        id,
+                        tipo,
+                        gravedad,
+                        titulo,
+                        descripcion
+                 FROM anotaciones
+                 WHERE estudiante_id = ?
+                   AND visible_apoderado = TRUE
+                   AND fecha >= ?::date AND fecha < ?::date
+                 ORDER BY fecha DESC, creado_en DESC`,
+                [req.estudiante.id, from, to],
+            ),
+        ]);
+
+        const attendanceRows = attendanceTable[0];
+        const arrivalMap = new Map(arrivalRows[0].map((row) => [row.fecha, row]));
+        const exitMap = new Map(exitRows[0].map((row) => [row.fecha, row]));
+        const holidays = holidayRows[0];
+        const tests = testRows[0];
+        const annotations = annotationRows[0];
+
+        const attendanceMap = new Map(attendanceRows.map((row) => [row.fecha, row.estado]));
+
+        const eventsByDate = new Map();
+        function pushEvent(fecha, event) {
+            if (!eventsByDate.has(fecha)) {
+                eventsByDate.set(fecha, []);
+            }
+            eventsByDate.get(fecha).push(event);
+        }
+
+        for (const [fecha, state] of attendanceMap.entries()) {
+            const arrival = arrivalMap.get(fecha);
+            const exit = exitMap.get(fecha);
+            pushEvent(fecha, {
+                tipo: 'asistencia',
+                subtipo: state,
+                titulo: state === 'ausente' ? 'Ausencia' : state === 'justificado' ? 'Justificado' : 'Asistencia',
+                descripcion: arrival?.hora_ingreso ? `Ingreso ${arrival.hora_ingreso}` : 'Registro diario',
+                color: state === 'ausente' ? '#ef4444' : state === 'justificado' ? '#60a5fa' : '#12b886',
+                detalle: {
+                    hora_ingreso: arrival?.hora_ingreso || null,
+                    minutos_retraso: arrival?.minutos_retraso || 0,
+                    justificado: Boolean(arrival?.justificado),
+                    hora_salida: exit?.hora_salida || null,
+                },
+            });
+        }
+
+        for (const item of holidays) {
+            pushEvent(item.fecha, {
+                tipo: 'feriado',
+                subtipo: item.alcance,
+                titulo: item.nombre,
+                descripcion: item.descripcion || 'Feriado escolar',
+                color: '#f59e0b',
+            });
+        }
+
+        for (const item of tests) {
+            pushEvent(item.fecha, {
+                tipo: 'prueba',
+                subtipo: item.materia_nombre,
+                titulo: item.titulo,
+                descripcion: [item.materia_nombre, item.hora_inicio, item.sala].filter(Boolean).join(' · '),
+                color: '#60a5fa',
+                detalle: {
+                    materia_id: item.materia_id,
+                    materia_nombre: item.materia_nombre,
+                    hora_inicio: item.hora_inicio,
+                    hora_fin: item.hora_fin,
+                    sala: item.sala,
+                    tipo: item.tipo,
+                },
+            });
+        }
+
+        for (const item of annotations) {
+            pushEvent(item.fecha, {
+                tipo: 'anotacion',
+                subtipo: item.gravedad,
+                titulo: item.titulo,
+                descripcion: item.descripcion,
+                color: item.gravedad === 'alta' ? '#ef4444' : item.gravedad === 'baja' ? '#12b886' : '#94a3b8',
+                detalle: {
+                    gravedad: item.gravedad,
+                },
+            });
+        }
+
+        const dates = [...new Set([
+            ...attendanceMap.keys(),
+            ...holidays.map((row) => row.fecha),
+            ...tests.map((row) => row.fecha),
+            ...annotations.map((row) => row.fecha),
+        ])].sort();
+
+        const result = {
+            estudiante: {
+                ...req.estudiante,
+                foto_url: buildAbsoluteUploadUrl(req, req.estudiante.foto_url),
+                curso: buildCoursePayload(req.estudiante),
+            },
+            mes: month,
+            resumen: {
+                feriados: holidays.length,
+                pruebas: tests.length,
+                anotaciones: annotations.length,
+                dias_con_eventos: dates.length,
+            },
+            dias: dates.map((date) => {
+                const eventos = (eventsByDate.get(date) || []).sort((a, b) => {
+                    const order = { feriado: 0, prueba: 1, anotacion: 2, asistencia: 3 };
+                    return (order[a.tipo] ?? 99) - (order[b.tipo] ?? 99);
+                });
+                return {
+                    fecha: date,
+                    estado_asistencia: attendanceMap.get(date) || null,
+                    tiene_salida: Boolean(exitMap.get(date)),
+                    eventos,
+                    colores: [...new Set(eventos.map((event) => event.color).filter(Boolean))],
+                };
+            }),
+            feriados: holidays,
+            pruebas: tests,
+            anotaciones: annotations,
+        };
+
+        cache.set(cacheKey, result);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/estudiantes/:id/anotaciones', requireOwnedStudent, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT id,
+                    TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
+                    tipo,
+                    gravedad,
+                    titulo,
+                    descripcion,
+                    TO_CHAR(creado_en, 'YYYY-MM-DD"T"HH24:MI:SS') AS creado_en
+             FROM anotaciones
+             WHERE estudiante_id = ? AND visible_apoderado = TRUE
+             ORDER BY fecha DESC, creado_en DESC`,
+            [req.estudiante.id],
+        );
+
+        res.json(rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

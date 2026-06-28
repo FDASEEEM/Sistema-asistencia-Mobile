@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Surface } from "../components/Cards";
 import { theme } from "../theme";

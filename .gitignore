@@ -11,3 +11,4 @@ expo-start-*.log
 expo-start-*.pid
 expo-start.log
 expo-start.pid
+.idea/

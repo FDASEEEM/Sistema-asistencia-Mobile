@@ -20,6 +20,7 @@ import RequestEarlyExitScreen from "./src/screens/RequestEarlyExitScreen";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 import AnnouncementsScreen from "./src/screens/AnnouncementsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import StudentAnnotationsScreen from "./src/screens/StudentAnnotationsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -32,6 +33,7 @@ function HomeStack() {
       <Stack.Screen name="AttendanceCalendar" component={AttendanceCalendarScreen} />
       <Stack.Screen name="LateArrivals" component={LateArrivalsScreen} />
       <Stack.Screen name="EarlyExits" component={EarlyExitsScreen} />
+      <Stack.Screen name="StudentAnnotations" component={StudentAnnotationsScreen} />
     </Stack.Navigator>
   );
 }

@@ -266,6 +266,12 @@ export default function HomeScreen({ navigation }) {
               </View>
             </View>
             <Text style={styles.studentCourse}>{selected.curso_nombre}</Text>
+            {selected.curso?.profesor_jefe ? (
+              <Text style={styles.teacherInfo}>
+                Profesor jefe: {selected.curso.profesor_jefe.nombre} {selected.curso.profesor_jefe.apellido}
+                {selected.curso.profesor_jefe.email ? ` · ${selected.curso.profesor_jefe.email}` : ""}
+              </Text>
+            ) : null}
           </Surface>
 
           <Surface style={styles.overviewCard}>
@@ -308,6 +314,7 @@ export default function HomeScreen({ navigation }) {
           <ActionCard icon="calendar-month-outline" title="Calendario mensual" subtitle="Asistencia del mes, dia por dia, con estados claros." accent={theme.colors.accent} onPress={() => navigation.navigate("AttendanceCalendar", { student: selected })} />
           <ActionCard icon="clock-alert-outline" title="Atrasos" subtitle="Minutos de retraso, estado y envio de justificacion." accent={theme.colors.warning} onPress={() => navigation.navigate("LateArrivals", { student: selected })} />
           <ActionCard icon="exit-run" title="Salidas" subtitle="Historial y nuevas solicitudes de retiro." accent={theme.colors.danger} onPress={() => navigation.navigate("EarlyExits", { student: selected })} />
+          <ActionCard icon="note-text-outline" title="Anotaciones" subtitle="Observaciones y seguimientos visibles para apoderados." accent={theme.colors.accent} onPress={() => navigation.navigate("StudentAnnotations", { student: selected })} />
         </>
       ) : null}
 
@@ -469,6 +476,11 @@ const styles = StyleSheet.create({
   studentCourse: {
     color: theme.colors.inkSoft,
     fontSize: 15,
+  },
+  teacherInfo: {
+    color: theme.colors.inkMuted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   studentIconWrap: {
     width: 42,

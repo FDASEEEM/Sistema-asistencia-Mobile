@@ -55,7 +55,7 @@ const adbPath = findAdbPath();
 const lanIp = findLanIp();
 const apiPort = Number(process.env.EXPO_API_PORT || 4100);
 const expoPort = Number(process.env.EXPO_PORT || (modeArg === "emu" ? 8082 : 8081));
-const expoMode = modeArg === "lan" ? "lan" : modeArg === "emu" ? "localhost" : "tunnel";
+const expoMode = modeArg === "emu" ? "localhost" : modeArg === "lan" || modeArg === "render" ? "lan" : "tunnel";
 const renderApiUrl = "https://sistema-asistencia-mobile.onrender.com/api";
 const apiUrl =
   modeArg === "render" || modeArg === "emu"

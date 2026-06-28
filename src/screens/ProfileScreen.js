@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import Screen from "../components/Screen";
 import { Surface } from "../components/Cards";
@@ -7,7 +7,15 @@ import { useAuth } from "../context/AuthContext";
 import { theme } from "../theme";
 
 export default function ProfileScreen() {
-  const { user, logout, updateUser } = useAuth();
+  const {
+    user,
+    logout,
+    updateUser,
+    biometricAvailable,
+    biometricEnabled,
+    enableBiometricUnlock,
+    disableBiometricUnlock,
+  } = useAuth();
   const [email, setEmail] = useState(user?.email || "");
   const [telefono, setTelefono] = useState(user?.telefono || "");
   const [password, setPassword] = useState("");
@@ -15,6 +23,12 @@ export default function ProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [revokeOtherSessions, setRevokeOtherSessions] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricSaving, setBiometricSaving] = useState(false);
+
+  useEffect(() => {
+    setEmail(user?.email || "");
+    setTelefono(user?.telefono || "");
+  }, [user]);
 
   const hasChanges = useMemo(() => {
     return (
@@ -67,6 +81,22 @@ export default function ProfileScreen() {
       Alert.alert("No se pudo actualizar", message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBiometricToggle = async (value) => {
+    setBiometricSaving(true);
+    try {
+      if (value) {
+        await enableBiometricUnlock();
+        Alert.alert("Huella activada", "La app pedira biometria al volver a abrirse en este dispositivo.");
+      } else {
+        await disableBiometricUnlock();
+      }
+    } catch (error) {
+      Alert.alert("No se pudo actualizar", error?.message || "Revisa la configuracion biometrica del equipo.");
+    } finally {
+      setBiometricSaving(false);
     }
   };
 
@@ -138,6 +168,24 @@ export default function ProfileScreen() {
             onValueChange={setRevokeOtherSessions}
             trackColor={{ false: "#d6d3d1", true: "#c7d2fe" }}
             thumbColor={revokeOtherSessions ? theme.colors.accent : "#ffffff"}
+          />
+        </View>
+
+        <View style={styles.switchRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.switchTitle}>Desbloqueo con huella</Text>
+            <Text style={styles.switchText}>
+              {biometricAvailable
+                ? "Pide la huella o Face ID al abrir la app en este Android."
+                : "Solo disponible en dispositivo Android con biometria configurada."}
+            </Text>
+          </View>
+          <Switch
+            value={biometricEnabled}
+            onValueChange={handleBiometricToggle}
+            disabled={!biometricAvailable || biometricSaving}
+            trackColor={{ false: "#d6d3d1", true: "#c7d2fe" }}
+            thumbColor={biometricEnabled ? theme.colors.accent : "#ffffff"}
           />
         </View>
       </Surface>

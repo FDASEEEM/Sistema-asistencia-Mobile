@@ -157,6 +157,20 @@ export default function StudentSummaryScreen({ route }) {
               <Text style={styles.contextLabel}>Curso</Text>
               <Text style={styles.contextValue}>{student.curso_nombre || "-"}</Text>
             </View>
+            <View style={[styles.contextRow, styles.contextBorder]}>
+              <Text style={styles.contextLabel}>Profesor jefe</Text>
+              <Text style={styles.contextValue}>
+                {summary?.estudiante?.curso?.profesor_jefe
+                  ? `${summary.estudiante.curso.profesor_jefe.nombre} ${summary.estudiante.curso.profesor_jefe.apellido}`
+                  : "-"}
+              </Text>
+            </View>
+            {summary?.estudiante?.curso?.profesor_jefe?.email ? (
+              <View style={[styles.contextRow, styles.contextBorder]}>
+                <Text style={styles.contextLabel}>Correo</Text>
+                <Text style={styles.contextValue}>{summary.estudiante.curso.profesor_jefe.email}</Text>
+              </View>
+            ) : null}
           </Surface>
 
           <Surface>

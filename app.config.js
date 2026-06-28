@@ -4,12 +4,13 @@ const androidPackage = 'com.sistemacesar.apoderados';
 const version = '1.0.0';
 const projectId = '5d7a5508-21d9-49ef-9eb5-4a9a8fe251af';
 const owner = process.env.EXPO_OWNER || 'fdaseem';
-const publicApiUrl = 'https://sistema-asistencia-mobile.onrender.com/api';
+const publicApiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://sistema-asistencia-mobile.onrender.com/api';
 
 module.exports = () => ({
   expo: {
     name: appName,
     slug: appSlug,
+    scheme: appSlug,
     version,
     orientation: 'portrait',
     userInterfaceStyle: 'light',
