@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Screen from "../components/Screen";
 import { ActionCard, MetricCard, Surface } from "../components/Cards";
@@ -37,44 +38,64 @@ export default function HomeScreen({ navigation }) {
   const [summaryCachedAt, setSummaryCachedAt] = useState("");
   const [comparisonRows, setComparisonRows] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      setStudentsLoading(true);
-      const cached = await readCache("students_list");
-      const savedId = await SecureStore.getItemAsync("last_student_id");
-      const favoriteStudentId = await SecureStore.getItemAsync("favorite_student_id");
-      setFavoriteId(favoriteStudentId ? Number(favoriteStudentId) : null);
+  const loadStudents = useCallback(async () => {
+    setStudentsLoading(true);
+    setStudentsError("");
+    const cached = await readCache("students_list");
+    const savedId = await SecureStore.getItemAsync("last_student_id");
+    const favoriteStudentId = await SecureStore.getItemAsync("favorite_student_id");
+    setFavoriteId(favoriteStudentId ? Number(favoriteStudentId) : null);
 
-      if (cached?.value?.length) {
-        setStudents(cached.value);
-        setStudentsCachedAt(cached.savedAt || "");
-        const cachedChoice =
-          cached.value.find((item) => String(item.id) === String(savedId)) ||
-          cached.value.find((item) => String(item.id) === String(favoriteStudentId)) ||
-          cached.value[0] ||
-          null;
-        setSelected(cachedChoice);
+    if (cached?.value?.length) {
+      setStudents(cached.value);
+      setStudentsCachedAt(cached.savedAt || "");
+      const cachedChoice =
+        cached.value.find((item) => String(item.id) === String(savedId)) ||
+        cached.value.find((item) => String(item.id) === String(favoriteStudentId)) ||
+        cached.value[0] ||
+        null;
+      setSelected(cachedChoice);
+    }
+
+    try {
+      let response = null;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          response = await mobileApi.get("/apoderados/estudiantes");
+          break;
+        } catch (err) {
+          if (attempt === 3) {
+            throw err;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        }
       }
 
-      try {
-        const { data } = await mobileApi.get("/apoderados/estudiantes");
-        const nextStudents = data || [];
-        setStudents(nextStudents);
-        await writeCache("students_list", nextStudents);
-        setStudentsCachedAt(new Date().toISOString());
-        const chosen =
-          nextStudents.find((item) => String(item.id) === String(savedId)) ||
-          nextStudents.find((item) => String(item.id) === String(favoriteStudentId)) ||
-          nextStudents[0] ||
-          null;
-        setSelected(chosen);
-      } catch (err) { console.warn('[HomeScreen] load students error:', err); }
-      finally {
-        setStudentsLoading(false);
-      }
-    })();
+      const nextStudents = response?.data || [];
+      setStudents(nextStudents);
+      await writeCache("students_list", nextStudents);
+      setStudentsCachedAt(new Date().toISOString());
+      const chosen =
+        nextStudents.find((item) => String(item.id) === String(savedId)) ||
+        nextStudents.find((item) => String(item.id) === String(favoriteStudentId)) ||
+        nextStudents[0] ||
+        null;
+      setSelected(chosen);
+    } catch (err) {
+      console.warn('[HomeScreen] load students error:', err);
+      setStudentsError(cached?.value?.length ? "Mostrando estudiantes guardados." : "No pude cargar tus estudiantes. Toca reintentar.");
+    } finally {
+      setStudentsLoading(false);
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStudents();
+    }, [loadStudents]),
+  );
 
   useEffect(() => {
     if (!selected?.id) {
@@ -203,6 +224,14 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.loadingRow}>
             <ActivityIndicator color={theme.colors.accent} />
             <Text style={styles.loadingText}>Cargando estudiantes...</Text>
+          </View>
+        ) : null}
+        {studentsError ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{studentsError}</Text>
+            <Pressable style={styles.retryButton} onPress={loadStudents}>
+              <Text style={styles.retryText}>Reintentar</Text>
+            </Pressable>
           </View>
         ) : null}
         <View style={styles.pills}>
@@ -555,6 +584,21 @@ const styles = StyleSheet.create({
   errorText: {
     color: theme.colors.danger,
     lineHeight: 19,
+  },
+  errorBox: {
+    gap: 8,
+    paddingVertical: 8,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    backgroundColor: theme.colors.ink,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  retryText: {
+    color: theme.colors.white,
+    fontWeight: "700",
   },
   cacheText: {
     color: theme.colors.inkMuted,
