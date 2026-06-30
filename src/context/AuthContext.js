@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
-import { mobileApi } from "../api/client";
+import { clearMobileAuthTokens, mobileApi, setMobileAuthTokens } from "../api/client";
 import { registerPushToken } from "../notifications/registerPushToken";
 import { deleteCache } from "../utils/cache";
 
@@ -74,6 +74,8 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    setMobileAuthTokens(token, refreshToken);
+
     try {
       const { data } = await mobileApi.get("/apoderados/auth/me");
       setUser(data.apoderado);
@@ -131,6 +133,7 @@ export function AuthProvider({ children }) {
     const { data } = await mobileApi.post("/apoderados/auth/login", { email, password });
     await SecureStore.setItemAsync("apoderado_access_token", data.token);
     await SecureStore.setItemAsync("apoderado_refresh_token", data.refreshToken);
+    setMobileAuthTokens(data.token, data.refreshToken);
     setUser(data.apoderado);
     try {
       await registerPushToken();
@@ -146,6 +149,7 @@ export function AuthProvider({ children }) {
     await SecureStore.deleteItemAsync("apoderado_refresh_token");
     await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
     await SecureStore.deleteItemAsync("last_student_id");
+    clearMobileAuthTokens();
     await deleteCache("students_list");
     await deleteCache("announcements_list");
     await deleteCache("notifications_list");
