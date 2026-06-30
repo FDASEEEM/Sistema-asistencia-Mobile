@@ -1,4 +1,6 @@
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const CACHE_PREFIX = "mobile_cache:";
 
 function normalizePayload(value) {
   return {
@@ -9,13 +11,13 @@ function normalizePayload(value) {
 
 export async function writeCache(key, value) {
   try {
-    await SecureStore.setItemAsync(key, JSON.stringify(normalizePayload(value)));
+    await AsyncStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(normalizePayload(value)));
   } catch (err) { console.warn('[cache] writeCache error:', err); }
 }
 
 export async function readCache(key) {
   try {
-    const raw = await SecureStore.getItemAsync(key);
+    const raw = await AsyncStorage.getItem(`${CACHE_PREFIX}${key}`);
     if (!raw) {
       return null;
     }
@@ -37,6 +39,6 @@ export async function readCache(key) {
 
 export async function deleteCache(key) {
   try {
-    await SecureStore.deleteItemAsync(key);
+    await AsyncStorage.removeItem(`${CACHE_PREFIX}${key}`);
   } catch (err) { console.warn('[cache] deleteCache error:', err); }
 }

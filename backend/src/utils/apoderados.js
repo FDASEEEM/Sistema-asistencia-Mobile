@@ -41,16 +41,10 @@ async function getApoderadoByStudentId(apoderadoId, estudianteId) {
 
     const [rows] = await pool.query(
         `SELECT e.id, e.nombre, e.apellido, e.rut, e.curso_id, e.foto_url,
-                c.nombre AS curso_nombre,
-                c.profesor_jefe_id,
-                pj.nombre AS profesor_jefe_nombre,
-                pj.apellido AS profesor_jefe_apellido,
-                pj.email AS profesor_jefe_email,
-                pj.telefono AS profesor_jefe_telefono
+                c.nombre AS curso_nombre
           FROM estudiante_apoderado ea
           JOIN estudiantes e ON e.id = ea.estudiante_id
           JOIN cursos c ON c.id = e.curso_id
-          LEFT JOIN usuarios pj ON pj.id = c.profesor_jefe_id
           WHERE ea.apoderado_id = ? AND ea.estudiante_id = ? AND e.activo = TRUE`,
         [apoderadoId, estudianteId],
     );

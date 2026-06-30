@@ -83,16 +83,10 @@ router.get('/estudiantes', async (req, res) => {
     try {
         const [rows] = await pool.query(
             `SELECT e.id, e.nombre, e.apellido, e.rut, e.foto_url, e.curso_id,
-                    c.nombre AS curso_nombre,
-                    c.profesor_jefe_id,
-                    pj.nombre AS profesor_jefe_nombre,
-                    pj.apellido AS profesor_jefe_apellido,
-                    pj.email AS profesor_jefe_email,
-                    pj.telefono AS profesor_jefe_telefono
+                    c.nombre AS curso_nombre
               FROM estudiante_apoderado ea
               JOIN estudiantes e ON e.id = ea.estudiante_id
               JOIN cursos c ON c.id = e.curso_id
-              LEFT JOIN usuarios pj ON pj.id = c.profesor_jefe_id
               WHERE ea.apoderado_id = ? AND e.activo = TRUE
               ORDER BY c.nombre ASC, e.apellido ASC`,
             [req.apoderado.id],
