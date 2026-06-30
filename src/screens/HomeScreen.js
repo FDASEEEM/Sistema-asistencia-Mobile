@@ -36,9 +36,11 @@ export default function HomeScreen({ navigation }) {
   const [studentsCachedAt, setStudentsCachedAt] = useState("");
   const [summaryCachedAt, setSummaryCachedAt] = useState("");
   const [comparisonRows, setComparisonRows] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
+      setStudentsLoading(true);
       const cached = await readCache("students_list");
       const savedId = await SecureStore.getItemAsync("last_student_id");
       const favoriteStudentId = await SecureStore.getItemAsync("favorite_student_id");
@@ -68,6 +70,9 @@ export default function HomeScreen({ navigation }) {
           null;
         setSelected(chosen);
       } catch (err) { console.warn('[HomeScreen] load students error:', err); }
+      finally {
+        setStudentsLoading(false);
+      }
     })();
   }, []);
 
@@ -138,34 +143,15 @@ export default function HomeScreen({ navigation }) {
       );
 
       const compactRows = cachedRows.filter(Boolean).sort((a, b) => b.porcentaje - a.porcentaje);
-      if (active && compactRows.length) {
-        setComparisonRows(compactRows);
+      if (active) {
+        setComparisonRows(compactRows.slice(0, 4));
       }
-
-      try {
-        const liveRows = await Promise.all(
-          students.map(async (student) => {
-            const { data } = await mobileApi.get(`/apoderados/estudiantes/${student.id}/resumen`);
-            await writeCache(`summary_${student.id}`, data);
-            return {
-              id: student.id,
-              nombre: `${student.nombre} ${student.apellido}`,
-              porcentaje: data.porcentaje_asistencia || 0,
-              estado: data.estado_resumen || "sin-datos",
-            };
-          }),
-        );
-
-        if (active) {
-          setComparisonRows(liveRows.sort((a, b) => b.porcentaje - a.porcentaje));
-        }
-      } catch (err) { console.warn('[HomeScreen] comparison rows error:', err); }
     })();
 
     return () => {
       active = false;
     };
-  }, [students]);
+  }, [students, summary]);
 
   const choose = async (student) => {
     setSelected(student);
@@ -213,6 +199,12 @@ export default function HomeScreen({ navigation }) {
 
       <Surface style={styles.selectorCard}>
         <Text style={styles.selectorLabel}>Cambiar estudiante</Text>
+        {studentsLoading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={theme.colors.accent} />
+            <Text style={styles.loadingText}>Cargando estudiantes...</Text>
+          </View>
+        ) : null}
         <View style={styles.pills}>
           {students.map((student) => (
             <View key={student.id} style={styles.pillRow}>
@@ -316,6 +308,13 @@ export default function HomeScreen({ navigation }) {
           <ActionCard icon="exit-run" title="Salidas" subtitle="Historial y nuevas solicitudes de retiro." accent={theme.colors.danger} onPress={() => navigation.navigate("EarlyExits", { student: selected })} />
           <ActionCard icon="note-text-outline" title="Anotaciones" subtitle="Observaciones y seguimientos visibles para apoderados." accent={theme.colors.accent} onPress={() => navigation.navigate("StudentAnnotations", { student: selected })} />
         </>
+      ) : null}
+
+      {!selected && studentsLoading ? (
+        <Surface style={styles.stateCard}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <Text style={styles.loadingText}>Preparando Inicio...</Text>
+        </Surface>
       ) : null}
 
       {!students.length && studentsCachedAt ? <Text style={styles.cacheText}>Ultima lista guardada: {studentsCachedAt.slice(0, 16).replace("T", " ")}</Text> : null}
@@ -542,6 +541,16 @@ const styles = StyleSheet.create({
   loadingText: {
     color: theme.colors.inkSoft,
     lineHeight: 19,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+  },
+  stateCard: {
+    alignItems: "center",
+    gap: 10,
   },
   errorText: {
     color: theme.colors.danger,
