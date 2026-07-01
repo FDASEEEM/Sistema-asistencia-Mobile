@@ -62,6 +62,41 @@ function getMonthRange(month) {
     };
 }
 
+async function getBestSummaryMonthRange(estudianteId) {
+    const current = getMonthRange();
+    const [currentRows] = await pool.query(
+        `SELECT COUNT(*) AS total
+         FROM (
+           SELECT fecha FROM tabla_asistencia_registros WHERE estudiante_id = ?
+           UNION ALL
+           SELECT fecha FROM asistencia WHERE estudiante_id = ?
+           UNION ALL
+           SELECT fecha FROM salidas_anticipadas WHERE estudiante_id = ?
+         ) registros
+         WHERE fecha >= ?::date AND fecha < ?::date`,
+        [estudianteId, estudianteId, estudianteId, current.from, current.to],
+    );
+
+    if (Number(currentRows[0]?.total || 0) > 0) {
+        return current;
+    }
+
+    const [latestRows] = await pool.query(
+        `SELECT TO_CHAR(MAX(fecha), 'YYYY-MM-DD') AS fecha
+         FROM (
+           SELECT fecha FROM tabla_asistencia_registros WHERE estudiante_id = ?
+           UNION ALL
+           SELECT fecha FROM asistencia WHERE estudiante_id = ?
+           UNION ALL
+           SELECT fecha FROM salidas_anticipadas WHERE estudiante_id = ?
+         ) registros`,
+        [estudianteId, estudianteId, estudianteId],
+    );
+
+    const latestDate = latestRows[0]?.fecha;
+    return latestDate ? getMonthRange(latestDate.slice(0, 7)) : current;
+}
+
 function mapAttendanceDay(baseState, attendanceRow, retiroRow) {
     const estadoBase = baseState || (attendanceRow ? 'presente' : 'sin estado');
     const tieneSalida = Boolean(retiroRow);
@@ -111,37 +146,53 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
     }
 
     try {
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-        const nextMonth = new Date(monthStart);
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        const previousMonth = new Date(monthStart);
+        const monthRange = await getBestSummaryMonthRange(estudianteId);
+        const from = monthRange.from;
+        const to = monthRange.to;
+        const previousMonth = new Date(`${from}T00:00:00`);
         previousMonth.setMonth(previousMonth.getMonth() - 1);
-        const from = monthStart.toISOString().slice(0, 10);
-        const to = nextMonth.toISOString().slice(0, 10);
         const previousFrom = previousMonth.toISOString().slice(0, 10);
         const previousTo = from;
 
         const results = await Promise.all([
             pool.query(
-                `SELECT COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) IN ('presente', 'justificado')) AS presentes,
-                        COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) = 'ausente') AS ausentes,
+                `WITH tabla AS (
+                    SELECT LOWER(TRIM(estado)) AS estado
+                    FROM tabla_asistencia_registros
+                    WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date
+                 ), ingresos AS (
+                    SELECT 'presente' AS estado
+                    FROM asistencia
+                    WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date
+                 ), base AS (
+                    SELECT * FROM tabla
+                    UNION ALL
+                    SELECT * FROM ingresos WHERE NOT EXISTS (SELECT 1 FROM tabla)
+                 )
+                 SELECT COUNT(*) FILTER (WHERE estado IN ('presente', 'justificado')) AS presentes,
+                        COUNT(*) FILTER (WHERE estado = 'ausente') AS ausentes,
                         COUNT(*) AS total
-                 FROM tabla_asistencia_registros
-                 WHERE estudiante_id = ?
-                   AND fecha >= ?::date
-                   AND fecha < ?::date`,
-                [estudianteId, from, to],
+                 FROM base`,
+                [estudianteId, from, to, estudianteId, from, to],
             ),
             pool.query(
-                `SELECT COUNT(*) FILTER (WHERE LOWER(TRIM(estado)) IN ('presente', 'justificado')) AS presentes,
+                `WITH tabla AS (
+                    SELECT LOWER(TRIM(estado)) AS estado
+                    FROM tabla_asistencia_registros
+                    WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date
+                 ), ingresos AS (
+                    SELECT 'presente' AS estado
+                    FROM asistencia
+                    WHERE estudiante_id = ? AND fecha >= ?::date AND fecha < ?::date
+                 ), base AS (
+                    SELECT * FROM tabla
+                    UNION ALL
+                    SELECT * FROM ingresos WHERE NOT EXISTS (SELECT 1 FROM tabla)
+                 )
+                 SELECT COUNT(*) FILTER (WHERE estado IN ('presente', 'justificado')) AS presentes,
                         COUNT(*) AS total
-                 FROM tabla_asistencia_registros
-                 WHERE estudiante_id = ?
-                   AND fecha >= ?::date
-                   AND fecha < ?::date`,
-                [estudianteId, previousFrom, previousTo],
+                 FROM base`,
+                [estudianteId, previousFrom, previousTo, estudianteId, previousFrom, previousTo],
             ),
             pool.query(
                 `SELECT COUNT(*) AS atrasos_mes,
@@ -210,6 +261,7 @@ router.get('/estudiantes/:id/resumen', requireOwnedStudent, async (req, res) => 
             },
             porcentaje_asistencia: porcentaje,
             porcentaje_asistencia_anterior: previousPorcentaje,
+            mes_resumen: monthRange.month,
             delta_asistencia: deltaAsistencia,
             estado_resumen: estadoResumen,
             total_presencias_mes: presentes,
